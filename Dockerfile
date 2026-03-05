@@ -1,12 +1,14 @@
 FROM python:3.11-slim-bookworm
 
-# 安裝系統依賴（OpenCV 和 InsightFace 需要）
+# 安裝系統依賴 + 編譯工具（insightface 需要）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
+    build-essential \
+    cmake \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
