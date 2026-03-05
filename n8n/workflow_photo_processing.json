@@ -1,0 +1,236 @@
+{
+  "name": "FriendKeeper - 照片處理",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.message.photo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "exists",
+                "operation": "exists"
+              }
+            }
+          ]
+        }
+      },
+      "id": "is-photo",
+      "name": "是否為照片？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "/",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ]
+        }
+      },
+      "id": "is-command",
+      "name": "是否為指令？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [420, 520]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $credentials.telegramApi.token }}/getFile?file_id={{ $json.message.photo.slice(-1)[0].file_id }}",
+        "options": {}
+      },
+      "id": "get-file-path",
+      "name": "取得檔案路徑",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 200]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/file/bot{{ $credentials.telegramApi.token }}/{{ $json.result.file_path }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "download-photo",
+      "name": "下載照片",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [860, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_FASTAPI_URL/api/v1/process-photo",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "process-photo",
+      "name": "呼叫人臉辨識 API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1080, 200]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "reply-photo-result",
+      "name": "回覆辨識結果",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1300, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_FASTAPI_URL/api/v1/bot/command",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"command\": \"{{ $json.message.text.split(' ')[0].replace('/', '') }}\",\n  \"args\": \"{{ $json.message.text.split(' ').slice(1).join(' ') }}\",\n  \"chat_id\": {{ $json.message.chat.id }}\n}",
+        "options": {}
+      },
+      "id": "handle-command",
+      "name": "處理 Bot 指令",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 520]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "reply-command-result",
+      "name": "回覆指令結果",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [860, 520],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          { "node": "是否為照片？", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "是否為照片？": {
+      "main": [
+        [
+          { "node": "取得檔案路徑", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "是否為指令？", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "取得檔案路徑": {
+      "main": [
+        [
+          { "node": "下載照片", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "下載照片": {
+      "main": [
+        [
+          { "node": "呼叫人臉辨識 API", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "呼叫人臉辨識 API": {
+      "main": [
+        [
+          { "node": "回覆辨識結果", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "是否為指令？": {
+      "main": [
+        [
+          { "node": "處理 Bot 指令", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "處理 Bot 指令": {
+      "main": [
+        [
+          { "node": "回覆指令結果", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

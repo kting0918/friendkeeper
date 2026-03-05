@@ -1,0 +1,120 @@
+{
+  "name": "FriendKeeper - 每日提醒",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "daily-cron",
+      "name": "每日 9:00 觸發",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "YOUR_FASTAPI_URL/api/v1/reminders/today",
+        "options": {}
+      },
+      "id": "fetch-reminders",
+      "name": "取得今日提醒",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "has-reminders",
+      "name": "有提醒嗎？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nlet msg = '☀️ <b>FriendKeeper 每日提醒</b>\\n\\n';\n\nif (data.birthdays && data.birthdays.length > 0) {\n  msg += '<b>🎂 生日提醒：</b>\\n';\n  for (const b of data.birthdays) {\n    msg += b.message + '\\n';\n  }\n  msg += '\\n';\n}\n\nif (data.overdue_contacts && data.overdue_contacts.length > 0) {\n  msg += '<b>⏰ 該聯繫了：</b>\\n';\n  for (const o of data.overdue_contacts) {\n    msg += o.message + '\\n';\n  }\n}\n\nreturn [{ json: { message: msg } }];"
+      },
+      "id": "format-message",
+      "name": "格式化訊息",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 250]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_CHAT_ID",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "send-reminder",
+      "name": "發送提醒",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1080, 250],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "每日 9:00 觸發": {
+      "main": [
+        [
+          { "node": "取得今日提醒", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "取得今日提醒": {
+      "main": [
+        [
+          { "node": "有提醒嗎？", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "有提醒嗎？": {
+      "main": [
+        [
+          { "node": "格式化訊息", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "格式化訊息": {
+      "main": [
+        [
+          { "node": "發送提醒", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

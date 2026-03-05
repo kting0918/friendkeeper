@@ -1,0 +1,32 @@
+# FastAPI
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.19
+
+# Database
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+alembic==1.14.1
+pgvector==0.3.6
+
+# Face Recognition
+insightface==0.7.3
+onnxruntime==1.20.1
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+Pillow==11.1.0
+
+# OpenAI
+openai==1.58.1
+
+# Telegram
+python-telegram-bot==21.9
+
+# Image metadata
+exifread==3.0.0
+
+# Utilities
+python-dotenv==1.0.1
+httpx==0.28.1
+pydantic==2.10.4
+pydantic-settings==2.7.1
