@@ -2,9 +2,9 @@ import uuid
 from datetime import datetime, date
 from typing import Optional, List
 
-from sqlalchemy import String, Text, Date, DateTime, Integer, Float, Boolean, ForeignKey, func
+from sqlalchemy import String, Text, Date, DateTime, Integer, Float, Boolean, ForeignKey, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from pgvector.sqlalchemy import Vector
+
 
 from app.core.database import Base
 
@@ -49,7 +49,7 @@ class FaceEmbedding(Base):
     contact_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    embedding = mapped_column(Vector(512), nullable=False)  # InsightFace 輸出 512 維向量
+    embedding = mapped_column(JSON, nullable=False)
     source_photo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
