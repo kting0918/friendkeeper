@@ -1,3 +1,4 @@
+import os
 import logging
 from contextlib import asynccontextmanager
 
@@ -19,10 +20,17 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """應用程式生命週期管理"""
-    logger.info("🚀 FriendKeeper 啟動中...")
+    port = os.environ.get("PORT", "8000")
+    logger.info(f"🚀 FriendKeeper 啟動中... (PORT={port})")
     # 初始化資料庫
     await init_db()
     logger.info("✅ 資料庫初始化完成")
+    # 預載人臉辨識模型
+    try:
+        from app.services.face_service import face_service
+        logger.info("✅ 人臉辨識服務就緒")
+    except Exception as e:
+        logger.warning(f"⚠️ 人臉辨識服務載入失敗（可稍後重試）：{e}")
     yield
     logger.info("👋 FriendKeeper 關閉")
 

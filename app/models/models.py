@@ -5,7 +5,6 @@ from typing import Optional, List
 from sqlalchemy import String, Text, Date, DateTime, Integer, Float, Boolean, ForeignKey, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-
 from app.core.database import Base
 
 
@@ -49,7 +48,7 @@ class FaceEmbedding(Base):
     contact_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    embedding = mapped_column(JSON, nullable=False)
+    embedding = mapped_column(JSON, nullable=False)  # 128 維特徵向量，以 JSON 陣列儲存
     source_photo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

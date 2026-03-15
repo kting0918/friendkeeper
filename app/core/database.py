@@ -12,6 +12,7 @@ class Base(DeclarativeBase):
 
 
 async def get_db() -> AsyncSession:
+    """FastAPI 依賴注入用的資料庫 session"""
     async with async_session() as session:
         try:
             yield session
@@ -24,5 +25,6 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db():
+    """初始化資料庫（建立所有資料表）"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

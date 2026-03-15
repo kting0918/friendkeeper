@@ -2,25 +2,14 @@ import logging
 from typing import List, Optional
 
 import numpy as np
+import cv2
+import face_recognition as fr
 
 logger = logging.getLogger(__name__)
 
 
 class FaceRecognitionService:
-    """人臉辨識服務 - 使用 face_recognition (dlib)，延遲載入以節省記憶體"""
-
-    def __init__(self):
-        self._fr = None
-        self._cv2 = None
-
-    def _ensure_loaded(self):
-        """延遲載入 face_recognition 和 cv2，避免啟動時 OOM"""
-        if self._fr is None:
-            import face_recognition as fr
-            import cv2
-            self._fr = fr
-            self._cv2 = cv2
-            logger.info("人臉辨識模組已載入")
+    """人臉辨識服務 - 使用 face_recognition (dlib)"""
 
     def detect_faces(self, image_bytes: bytes) -> List[dict]:
         """
@@ -29,21 +18,19 @@ class FaceRecognitionService:
         Returns:
             list of dict: bbox, embedding, confidence
         """
-        self._ensure_loaded()
-
         nparr = np.frombuffer(image_bytes, np.uint8)
-        img = self._cv2.imdecode(nparr, self._cv2.IMREAD_COLOR)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is None:
             logger.error("無法解碼圖片")
             return []
 
         # face_recognition 使用 RGB
-        rgb_img = self._cv2.cvtColor(img, self._cv2.COLOR_BGR2RGB)
+        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         # 偵測人臉位置
-        face_locations = self._fr.face_locations(rgb_img, model="hog")
+        face_locations = fr.face_locations(rgb_img, model="hog")
         # 提取 128 維特徵向量
-        face_encodings = self._fr.face_encodings(rgb_img, face_locations)
+        face_encodings = fr.face_encodings(rgb_img, face_locations)
 
         results = []
         for loc, encoding in zip(face_locations, face_encodings):

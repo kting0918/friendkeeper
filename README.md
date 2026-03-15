@@ -13,9 +13,9 @@
 ## 技術架構
 
 ```
-Telegram Bot → n8n → FastAPI → PostgreSQL + pgvector
+Telegram Bot → n8n → FastAPI → PostgreSQL (JSON vectors)
                                     ↓
-                              InsightFace (人臉辨識)
+                              face_recognition/dlib (人臉辨識)
                               GPT-4o (場景描述)
 ```
 
@@ -29,6 +29,8 @@ Telegram Bot → n8n → FastAPI → PostgreSQL + pgvector
 |------|------|
 | 📷 傳照片 | 自動辨識並記錄 |
 | `/new 姓名` | 新增聯絡人 |
+| `/register 姓名` | 註冊人臉（傳照片） |
+| `/cancel` | 取消目前操作 |
 | `/info 姓名` | 查看資訊 |
 | `/birthday 姓名 日期` | 設定生日 |
 | `/note 姓名 內容` | 新增備註 |

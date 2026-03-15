@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.schemas.schemas import RecognitionResult, FaceMatch, FaceDetection
-from app.services.face_service import face_service
+from app.services.face_recognition import face_service
 from app.services.scene_description import describe_scene
 from app.services.photo_metadata import extract_photo_time, extract_photo_location
 from app.services import contact_service

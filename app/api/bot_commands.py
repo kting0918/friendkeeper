@@ -13,6 +13,10 @@ from app.services import contact_service
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/bot", tags=["telegram-bot"])
 
+# 簡易的聊天會話狀態（記錄哪個 chat_id 正在等待註冊照片）
+# key: chat_id, value: {"contact_name": str, "contact_id": str, "created_at": datetime}
+_registration_sessions: dict[int, dict] = {}
+
 
 class BotCommandRequest(BaseModel):
     """Telegram Bot 指令請求"""
@@ -66,6 +70,10 @@ async def handle_bot_command(
             return await cmd_stats(db)
         elif command == "new":
             return await cmd_new(db, args)
+        elif command == "register":
+            return await cmd_register(db, args, request.chat_id)
+        elif command == "cancel":
+            return cmd_cancel(request.chat_id)
         elif command == "help":
             return cmd_help()
         else:
@@ -343,6 +351,88 @@ async def cmd_stats(db: AsyncSession) -> BotCommandResponse:
     return BotCommandResponse(message=msg)
 
 
+async def cmd_register(db: AsyncSession, args: str, chat_id: int) -> BotCommandResponse:
+    """進入人臉註冊模式"""
+    if not args:
+        return BotCommandResponse(message="❌ 請提供姓名\n用法：/register 姓名")
+
+    contact = await contact_service.get_contact_by_name(db, args)
+    if not contact:
+        return BotCommandResponse(
+            message=f"❌ 找不到聯絡人：{args}\n請先用 /new {args} 建立聯絡人"
+        )
+
+    face_count = await contact_service.get_contact_face_count(db, contact.id)
+
+    # 設定註冊會話
+    _registration_sessions[chat_id] = {
+        "contact_name": contact.name,
+        "contact_id": str(contact.id),
+        "created_at": datetime.utcnow(),
+    }
+
+    msg = f"📸 <b>人臉註冊模式</b>\n\n"
+    msg += f"正在為 <b>{contact.name}</b> 註冊人臉"
+    msg += f"（目前已有 {face_count} 筆資料）\n\n"
+    msg += "請傳送一張此人的<b>清晰正面照</b>。\n"
+    msg += "建議註冊 3-5 張不同角度的照片以提升辨識準確度。\n\n"
+    msg += "輸入 /cancel 取消註冊"
+
+    return BotCommandResponse(message=msg)
+
+
+def cmd_cancel(chat_id: int) -> BotCommandResponse:
+    """取消註冊模式"""
+    if chat_id in _registration_sessions:
+        name = _registration_sessions.pop(chat_id)["contact_name"]
+        return BotCommandResponse(message=f"✅ 已取消為 {name} 的人臉註冊")
+    return BotCommandResponse(message="ℹ️ 目前沒有進行中的註冊")
+
+
+@router.get("/registration-session")
+async def check_registration_session(chat_id: int):
+    """
+    檢查指定 chat_id 是否有進行中的人臉註冊會話
+
+    n8n 在收到照片時先呼叫此端點：
+    - 如果有註冊會話 → 走人臉註冊流程
+    - 如果沒有 → 走一般的人臉辨識流程
+    """
+    session = _registration_sessions.get(chat_id)
+    if session:
+        # 檢查是否過期（30 分鐘）
+        elapsed = (datetime.utcnow() - session["created_at"]).total_seconds()
+        if elapsed > 1800:
+            _registration_sessions.pop(chat_id, None)
+            return {"has_session": False}
+        return {
+            "has_session": True,
+            "contact_name": session["contact_name"],
+            "contact_id": session["contact_id"],
+        }
+    return {"has_session": False}
+
+
+@router.post("/registration-complete")
+async def complete_registration(chat_id: int):
+    """
+    完成一次人臉註冊後呼叫（不自動清除會話，允許連續註冊多張照片）
+
+    n8n 在人臉註冊成功後呼叫此端點，回傳訊息給使用者
+    """
+    session = _registration_sessions.get(chat_id)
+    if not session:
+        return {"message": "ℹ️ 註冊會話已結束"}
+
+    return {
+        "message": (
+            f"✅ 已為 <b>{session['contact_name']}</b> 註冊一筆人臉資料！\n\n"
+            f"你可以繼續傳照片來增加更多角度，\n"
+            f"或輸入 /cancel 結束註冊模式。"
+        )
+    }
+
+
 def cmd_help() -> BotCommandResponse:
     """顯示說明"""
     msg = """<b>🤖 FriendKeeper 指令說明</b>
@@ -352,6 +442,7 @@ def cmd_help() -> BotCommandResponse:
 
 <b>👤 聯絡人管理</b>
 /new 姓名 → 新增聯絡人
+/register 姓名 → 註冊人臉（傳照片）
 /info 姓名 → 查看資訊
 /list [標籤] → 列出聯絡人
 /tag 姓名 標籤 → 設定關係標籤
@@ -366,6 +457,9 @@ def cmd_help() -> BotCommandResponse:
 /remind → 需要聯繫的人
 /upcoming → 近期生日
 /history 姓名 → 互動歷史
-/stats → 整體統計"""
+/stats → 整體統計
+
+<b>⚙️ 其他</b>
+/cancel → 取消目前操作"""
 
     return BotCommandResponse(message=msg)
