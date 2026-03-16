@@ -69,7 +69,7 @@ async def handle_bot_command(
         elif command == "stats":
             return await cmd_stats(db)
         elif command == "new":
-            return await cmd_new(db, args)
+            return await cmd_new(db, args, request.chat_id)
         elif command == "register":
             return await cmd_register(db, args, request.chat_id)
         elif command == "cancel":
@@ -133,8 +133,8 @@ async def cmd_info(db: AsyncSession, args: str) -> BotCommandResponse:
     return BotCommandResponse(message=msg)
 
 
-async def cmd_new(db: AsyncSession, args: str) -> BotCommandResponse:
-    """新增聯絡人"""
+async def cmd_new(db: AsyncSession, args: str, chat_id: int = 0) -> BotCommandResponse:
+    """新增聯絡人並自動進入人臉註冊模式"""
     if not args:
         return BotCommandResponse(message="❌ 請提供姓名\n用法：/new 姓名")
 
@@ -143,10 +143,21 @@ async def cmd_new(db: AsyncSession, args: str) -> BotCommandResponse:
         return BotCommandResponse(message=f"⚠️ {args} 已存在，請使用其他名稱")
 
     contact = await contact_service.create_contact(db, name=args)
+
+    # 自動建立註冊會話，讓使用者可以直接傳照片註冊人臉
+    if chat_id:
+        _registration_sessions[chat_id] = {
+            "contact_name": contact.name,
+            "contact_id": str(contact.id),
+            "created_at": datetime.utcnow(),
+        }
+
     return BotCommandResponse(
         message=f"✅ 已建立聯絡人：<b>{contact.name}</b>\n\n"
-                f"接下來請傳送一張此人的照片來註冊人臉。\n"
-                f"建議用清晰的正面照，之後可以再追加不同角度的照片。"
+                f"📸 已進入<b>人臉註冊模式</b>\n"
+                f"請傳送一張此人的<b>清晰正面照</b>來註冊人臉。\n"
+                f"建議註冊 3-5 張不同角度的照片以提升辨識準確度。\n\n"
+                f"輸入 /cancel 取消註冊"
     )
 
 
