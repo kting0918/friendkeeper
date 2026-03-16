@@ -195,6 +195,11 @@ async def process_photo(
     # 比對人臉
     recognized = []
     unknown_count = 0
+    auto_learned = []  # 自動學習的 embedding
+
+    # 自動學習門檻：辨識信心值 > 0.85 才追加，避免誤判汙染資料
+    AUTO_LEARN_THRESHOLD = 0.85
+    MAX_EMBEDDINGS_PER_CONTACT = 20
 
     for face_data in detected_faces:
         embedding = face_data["embedding"].tolist()
@@ -202,7 +207,27 @@ async def process_photo(
             db, embedding, threshold=settings.face_similarity_threshold
         )
         if matches:
-            recognized.append(matches[0])
+            best = matches[0]
+            recognized.append(best)
+
+            # 高信心值時自動追加 embedding（越用越準）
+            if best["similarity"] >= AUTO_LEARN_THRESHOLD:
+                face_count = await contact_service.get_contact_face_count(
+                    db, best["contact_id"]
+                )
+                if face_count < MAX_EMBEDDINGS_PER_CONTACT:
+                    await contact_service.save_face_embedding(
+                        db,
+                        contact_id=best["contact_id"],
+                        embedding=embedding,
+                        source_photo_url=None,
+                    )
+                    auto_learned.append(best["contact_name"])
+                    logger.info(
+                        f"自動學習：{best['contact_name']} "
+                        f"(similarity={best['similarity']:.3f}, "
+                        f"total={face_count + 1})"
+                    )
         else:
             unknown_count += 1
 
@@ -246,6 +271,8 @@ async def process_photo(
         if scene_desc:
             message += f"🏷️ 場景：{scene_desc}\n"
         message += f"✅ 已記錄 {len(recognized)} 筆見面紀錄"
+        if auto_learned:
+            message += f"\n🧠 已自動學習 {', '.join(auto_learned)} 的新面部特徵"
     else:
         message = "🤔 未能辨識出照片中的任何人"
 
